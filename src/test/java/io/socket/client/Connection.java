@@ -16,7 +16,7 @@ public abstract class Connection {
 
     private static final Logger logger = Logger.getLogger(Connection.class.getName());
 
-    final static int TIMEOUT = 7000;
+    final static int TIMEOUT = 7_000;
     final static int PORT = 3000;
 
     private Process serverProcess;

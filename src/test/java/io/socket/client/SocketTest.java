@@ -114,7 +114,17 @@ public class SocketTest extends Connection {
     @Test(timeout = TIMEOUT)
     public void shouldChangeSocketIdUponReconnection() throws InterruptedException {
         final BlockingQueue<Optional> values = new LinkedBlockingQueue<>();
-        socket = client();
+
+        IO.Options opts = createOptions();
+        opts.forceNew = true;
+        try {
+            JSONObject auth = new JSONObject();
+            auth.put("noRecovery", true);
+            opts.auth = auth;
+        } catch (JSONException ignored) {
+        }
+
+        socket = client(opts);
         socket.once(Socket.EVENT_CONNECT, new Emitter.Listener() {
             @Override
             public void call(Object... objects) {
@@ -160,7 +170,7 @@ public class SocketTest extends Connection {
         socket.emit("getHandshake", new Ack() {
             @Override
             public void call(Object... args) {
-                JSONObject handshake = (JSONObject)args[0];
+                JSONObject handshake = (JSONObject) args[0];
                 values.offer(Optional.ofNullable(handshake));
             }
         });
@@ -181,7 +191,7 @@ public class SocketTest extends Connection {
         socket.on("handshake", new Emitter.Listener() {
             @Override
             public void call(Object... args) {
-                JSONObject handshake = (JSONObject)args[0];
+                JSONObject handshake = (JSONObject) args[0];
                 values.offer(Optional.ofNullable(handshake));
             }
         });
@@ -201,12 +211,14 @@ public class SocketTest extends Connection {
         final BlockingQueue<Optional> values = new LinkedBlockingQueue<>();
 
         IO.Options opts = new IO.Options();
-        opts.auth = singletonMap("token", "abcd");
+        JSONObject auth = new JSONObject();
+        auth.put("token", "abcd");
+        opts.auth = auth;
         socket = client("/abc", opts);
         socket.on("handshake", new Emitter.Listener() {
             @Override
             public void call(Object... args) {
-                JSONObject handshake = (JSONObject)args[0];
+                JSONObject handshake = (JSONObject) args[0];
                 values.offer(Optional.ofNullable(handshake));
             }
         });
@@ -373,7 +385,7 @@ public class SocketTest extends Connection {
         socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
             @Override
             public void call(Object... args) {
-                socket.emit("ack", 1, "2", new byte[] { 3 }, new AckWithTimeout(200) {
+                socket.emit("ack", 1, "2", new byte[]{3}, new AckWithTimeout(200) {
                     @Override
                     public void onTimeout() {
                         fail();
@@ -393,7 +405,7 @@ public class SocketTest extends Connection {
 
         assertThat((Integer) values.take(), is(1));
         assertThat((String) values.take(), is("2"));
-        assertThat((byte[]) values.take(), is(new byte[] { 3 }));
+        assertThat((byte[]) values.take(), is(new byte[]{3}));
     }
 
     @Test(timeout = TIMEOUT)
@@ -402,20 +414,14 @@ public class SocketTest extends Connection {
 
         socket = client();
 
-        socket.on("message", new Emitter.Listener() {
-            @Override
-            public void call(Object... args) {
-                socket.emit("echo", 1, "2", new byte[] { 3 });
+        socket.on("message", args -> {
+            socket.emit("echo", 1, "2", new byte[]{3});
 
-                socket.onAnyIncoming(new Emitter.Listener() {
-                    @Override
-                    public void call(Object... args) {
-                        for (Object arg : args) {
-                            values.offer(arg);
-                        }
-                    }
-                });
-            }
+            socket.onAnyIncoming(args1 -> {
+                for (Object arg : args1) {
+                    values.offer(arg);
+                }
+            });
         });
 
         socket.connect();
@@ -423,7 +429,7 @@ public class SocketTest extends Connection {
         assertThat((String) values.take(), is("echoBack"));
         assertThat((Integer) values.take(), is(1));
         assertThat((String) values.take(), is("2"));
-        assertThat((byte[]) values.take(), is(new byte[] { 3 }));
+        assertThat((byte[]) values.take(), is(new byte[]{3}));
     }
 
     @Test(timeout = TIMEOUT)
@@ -432,14 +438,11 @@ public class SocketTest extends Connection {
 
         socket = client();
 
-        socket.emit("echo", 1, "2", new byte[] { 3 });
+        socket.emit("echo", 1, "2", new byte[]{3});
 
-        socket.onAnyOutgoing(new Emitter.Listener() {
-            @Override
-            public void call(Object... args) {
-                for (Object arg : args) {
-                    values.offer(arg);
-                }
+        socket.onAnyOutgoing(args -> {
+            for (Object arg : args) {
+                values.offer(arg);
             }
         });
 
@@ -448,6 +451,6 @@ public class SocketTest extends Connection {
         assertThat((String) values.take(), is("echo"));
         assertThat((Integer) values.take(), is(1));
         assertThat((String) values.take(), is("2"));
-        assertThat((byte[]) values.take(), is(new byte[] { 3 }));
+        assertThat((byte[]) values.take(), is(new byte[]{3}));
     }
 }

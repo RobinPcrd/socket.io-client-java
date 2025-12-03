@@ -59,10 +59,15 @@ public class Socket extends Emitter {
     private int ids;
     private final String nsp;
     private final Manager io;
-    private final Map<String, String> auth;
+    private final JSONObject auth;
+
+    private String _pid = null;
+    private String _lastOffset = null;
+    private boolean recovered = false;
+
     private final Map<Integer, Ack> acks = new ConcurrentHashMap<>();
     private Queue<On.Handle> subs;
-    private final Queue<List<Object>> receiveBuffer = new ConcurrentLinkedQueue<>();
+    private final Queue<Packet<JSONArray>> receiveBuffer = new ConcurrentLinkedQueue<>();
     private final Queue<Packet<JSONArray>> sendBuffer = new ConcurrentLinkedQueue<>();
 
     private final ConcurrentLinkedQueue<Listener> onAnyIncomingListeners = new ConcurrentLinkedQueue<>();
@@ -79,31 +84,19 @@ public class Socket extends Emitter {
 
         final Manager io = Socket.this.io;
         Socket.this.subs = new LinkedList<On.Handle>() {{
-            add(On.on(io, Manager.EVENT_OPEN, new Listener() {
-                @Override
-                public void call(Object... args) {
-                    Socket.this.onopen();
+            add(On.on(io, Manager.EVENT_OPEN, args -> {
+                Socket.this.onopen();
+            }));
+            add(On.on(io, Manager.EVENT_PACKET, args -> {
+                Socket.this.onpacket((Packet<?>) args[0]);
+            }));
+            add(On.on(io, Manager.EVENT_ERROR, args -> {
+                if (!Socket.this.connected) {
+                    Socket.super.emit(EVENT_CONNECT_ERROR, args[0]);
                 }
             }));
-            add(On.on(io, Manager.EVENT_PACKET, new Listener() {
-                @Override
-                public void call(Object... args) {
-                    Socket.this.onpacket((Packet<?>) args[0]);
-                }
-            }));
-            add(On.on(io, Manager.EVENT_ERROR, new Listener() {
-                @Override
-                public void call(Object... args) {
-                    if (!Socket.this.connected) {
-                        Socket.super.emit(EVENT_CONNECT_ERROR, args[0]);
-                    }
-                }
-            }));
-            add(On.on(io, Manager.EVENT_CLOSE, new Listener() {
-                @Override
-                public void call(Object... args) {
-                    Socket.this.onclose(args.length > 0 ? (String) args[0] : null);
-                }
+            add(On.on(io, Manager.EVENT_CLOSE, args -> {
+                Socket.this.onclose(args.length > 0 ? (String) args[0] : null);
             }));
         }};
     }
@@ -116,15 +109,12 @@ public class Socket extends Emitter {
      * Connects the socket.
      */
     public Socket open() {
-        EventThread.exec(new Runnable() {
-            @Override
-            public void run() {
-                if (Socket.this.connected || Socket.this.io.isReconnecting()) return;
+        EventThread.exec(() -> {
+            if (Socket.this.connected || Socket.this.io.isReconnecting()) return;
 
-                Socket.this.subEvents();
-                Socket.this.io.open(); // ensure open
-                if (Manager.ReadyState.OPEN == Socket.this.io.readyState) Socket.this.onopen();
-            }
+            Socket.this.subEvents();
+            Socket.this.io.open(); // ensure open
+            if (Manager.ReadyState.OPEN == Socket.this.io.readyState) Socket.this.onopen();
         });
         return this;
     }
@@ -143,12 +133,7 @@ public class Socket extends Emitter {
      * @return a reference to this object.
      */
     public Socket send(final Object... args) {
-        EventThread.exec(new Runnable() {
-            @Override
-            public void run() {
-                Socket.this.emit(EVENT_MESSAGE, args);
-            }
-        });
+        EventThread.exec(() -> Socket.this.emit(EVENT_MESSAGE, args));
         return this;
     }
 
@@ -156,7 +141,7 @@ public class Socket extends Emitter {
      * Emits an event. When you pass {@link Ack} at the last argument, then the acknowledge is done.
      *
      * @param event an event name.
-     * @param args data to send.
+     * @param args  data to send.
      * @return a reference to this object.
      */
     @Override
@@ -165,26 +150,23 @@ public class Socket extends Emitter {
             throw new RuntimeException("'" + event + "' is a reserved event name");
         }
 
-        EventThread.exec(new Runnable() {
-            @Override
-            public void run() {
-                Ack ack;
-                Object[] _args;
-                int lastIndex = args.length - 1;
+        EventThread.exec(() -> {
+            Ack ack;
+            Object[] _args;
+            int lastIndex = args.length - 1;
 
-                if (args.length > 0 && args[lastIndex] instanceof Ack) {
-                    _args = new Object[lastIndex];
-                    for (int i = 0; i < lastIndex; i++) {
-                        _args[i] = args[i];
-                    }
-                    ack = (Ack) args[lastIndex];
-                } else {
-                    _args = args;
-                    ack = null;
+            if (args.length > 0 && args[lastIndex] instanceof Ack) {
+                _args = new Object[lastIndex];
+                for (int i = 0; i < lastIndex; i++) {
+                    _args[i] = args[i];
                 }
-
-                emit(event, _args, ack);
+                ack = (Ack) args[lastIndex];
+            } else {
+                _args = args;
+                ack = null;
             }
+
+            emit(event, _args, ack);
         });
         return this;
     }
@@ -193,60 +175,57 @@ public class Socket extends Emitter {
      * Emits an event with an acknowledge.
      *
      * @param event an event name
-     * @param args data to send.
-     * @param ack the acknowledgement to be called
+     * @param args  data to send.
+     * @param ack   the acknowledgement to be called
      * @return a reference to this object.
      */
     public Emitter emit(final String event, final Object[] args, final Ack ack) {
-        EventThread.exec(new Runnable() {
-            @Override
-            public void run() {
-                JSONArray jsonArgs = new JSONArray();
-                jsonArgs.put(event);
+        EventThread.exec(() -> {
+            JSONArray jsonArgs = new JSONArray();
+            jsonArgs.put(event);
 
-                if (args != null) {
-                    for (Object arg : args) {
-                        jsonArgs.put(arg);
-                    }
+            if (args != null) {
+                for (Object arg : args) {
+                    jsonArgs.put(arg);
                 }
+            }
 
-                Packet<JSONArray> packet = new Packet<>(Parser.EVENT, jsonArgs);
+            Packet<JSONArray> packet = new Packet<>(Parser.EVENT, jsonArgs);
 
-                if (ack != null) {
-                    final int ackId = Socket.this.ids;
+            if (ack != null) {
+                final int ackId = Socket.this.ids;
 
-                    logger.fine(String.format("emitting packet with ack id %d", ackId));
+                logger.fine(String.format("emitting packet with ack id %d", ackId));
 
-                    if (ack instanceof AckWithTimeout) {
-                        final AckWithTimeout ackWithTimeout = (AckWithTimeout) ack;
-                        ackWithTimeout.schedule(new TimerTask() {
-                            @Override
-                            public void run() {
-                                // remove the ack from the map (to prevent an actual acknowledgement)
-                                acks.remove(ackId);
+                if (ack instanceof AckWithTimeout) {
+                    final AckWithTimeout ackWithTimeout = (AckWithTimeout) ack;
+                    ackWithTimeout.schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            // remove the ack from the map (to prevent an actual acknowledgement)
+                            acks.remove(ackId);
 
-                                // remove the packet from the buffer (if applicable)
-                                Iterator<Packet<JSONArray>> iterator = sendBuffer.iterator();
-                                while (iterator.hasNext()) {
-                                    if (iterator.next().id == ackId) {
-                                        iterator.remove();
-                                    }
+                            // remove the packet from the buffer (if applicable)
+                            Iterator<Packet<JSONArray>> iterator = sendBuffer.iterator();
+                            while (iterator.hasNext()) {
+                                if (iterator.next().id == ackId) {
+                                    iterator.remove();
                                 }
-
-                                ackWithTimeout.onTimeout();
                             }
-                        });
-                    }
 
-                    Socket.this.acks.put(ackId, ack);
-                    packet.id = ids++;
+                            ackWithTimeout.onTimeout();
+                        }
+                    });
                 }
 
-                if (Socket.this.connected) {
-                    Socket.this.packet(packet);
-                } else {
-                    Socket.this.sendBuffer.add(packet);
-                }
+                Socket.this.acks.put(ackId, ack);
+                packet.id = ids++;
+            }
+
+            if (Socket.this.connected) {
+                Socket.this.packet(packet);
+            } else {
+                Socket.this.sendBuffer.add(packet);
             }
         });
         return this;
@@ -268,8 +247,23 @@ public class Socket extends Emitter {
     private void onopen() {
         logger.fine("transport is open - connecting");
 
-        if (this.auth != null) {
-            this.packet(new Packet<>(Parser.CONNECT, new JSONObject(this.auth)));
+        JSONObject auth = this.auth;
+
+        if (_pid != null && _lastOffset != null) {
+            // Reconnection - add recovery data
+            try {
+                if (auth == null) {
+                    auth = new JSONObject();
+                }
+                auth.put("pid", _pid);
+                auth.put("offset", String.valueOf(_lastOffset));
+            } catch (JSONException e) {
+                logger.warning(e.getMessage());
+            }
+        }
+
+        if (auth != null) {
+            this.packet(new Packet<>(Parser.CONNECT, auth));
         } else {
             this.packet(new Packet<>(Parser.CONNECT));
         }
@@ -304,11 +298,19 @@ public class Socket extends Emitter {
 
         switch (packet.type) {
             case Parser.CONNECT: {
-                if (packet.data instanceof JSONObject && ((JSONObject) packet.data).has("sid")) {
+                if (packet.data instanceof JSONObject) {
+                    JSONObject data = (JSONObject) packet.data;
                     try {
-                        this.onconnect(((JSONObject) packet.data).getString("sid"));
-                        return;
-                    } catch (JSONException e) {}
+                        if (data.has("pid") && data.has("sid")) {
+                            this.onconnect(data.getString("sid"), data.getString("pid"));
+                            return;
+                        } else if (data.has("sid")) {
+                            this.onconnect(data.getString("sid"));
+                            return;
+                        }
+                    } catch (JSONException e) {
+                        logger.warning(e.getMessage());
+                    }
                 } else {
                     super.emit(EVENT_CONNECT_ERROR, new SocketIOException("It seems you are trying to reach a Socket.IO server in v2.x with a v3.x client, which is not possible"));
                 }
@@ -363,38 +365,34 @@ public class Socket extends Emitter {
             }
             String event = args.remove(0).toString();
             super.emit(event, args.toArray());
+            // Update offset if present
+            if (this._pid != null && args.get(args.size() - 1) instanceof String) {
+                _lastOffset = (String) args.get(args.size() - 1);
+            }
         } else {
-            this.receiveBuffer.add(args);
+            this.receiveBuffer.add(packet);
         }
     }
 
     private Ack ack(final int id) {
         final Socket self = this;
-        final boolean[] sent = new boolean[] {false};
-        return new Ack() {
-            @Override
-            public void call(final Object... args) {
-                EventThread.exec(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (sent[0]) return;
-                        sent[0] = true;
-                        if (logger.isLoggable(Level.FINE)) {
-                            logger.fine(String.format("sending ack %s", args.length != 0 ? args : null));
-                        }
-
-                        JSONArray jsonArgs = new JSONArray();
-                        for (Object arg : args) {
-                            jsonArgs.put(arg);
-                        }
-
-                        Packet<JSONArray> packet = new Packet<>(Parser.ACK, jsonArgs);
-                        packet.id = id;
-                        self.packet(packet);
-                    }
-                });
+        final boolean[] sent = new boolean[]{false};
+        return args -> EventThread.exec(() -> {
+            if (sent[0]) return;
+            sent[0] = true;
+            if (logger.isLoggable(Level.FINE)) {
+                logger.fine(String.format("sending ack %s", args.length != 0 ? args : null));
             }
-        };
+
+            JSONArray jsonArgs = new JSONArray();
+            for (Object arg : args) {
+                jsonArgs.put(arg);
+            }
+
+            Packet<JSONArray> packet = new Packet<>(Parser.ACK, jsonArgs);
+            packet.id = id;
+            self.packet(packet);
+        });
     }
 
     private void onack(Packet<JSONArray> packet) {
@@ -411,18 +409,27 @@ public class Socket extends Emitter {
         }
     }
 
-    private void onconnect(String id) {
+    private void onconnect(String sid) {
         this.connected = true;
-        this.id = id;
+        this.id = sid;
+        this.recovered = false;
+        this.emitBuffered();
+        super.emit(EVENT_CONNECT);
+    }
+
+    private void onconnect(String sid, String pid) {
+        this.connected = true;
+        this.id = sid;
+        this.recovered = pid != null && pid.equals(_pid);
+        this._pid = pid;
         this.emitBuffered();
         super.emit(EVENT_CONNECT);
     }
 
     private void emitBuffered() {
-        List<Object> data;
+        Packet<JSONArray> data;
         while ((data = this.receiveBuffer.poll()) != null) {
-            String event = (String)data.get(0);
-            super.emit(event, data.toArray());
+            onevent(data);
         }
         this.receiveBuffer.clear();
 
@@ -437,6 +444,7 @@ public class Socket extends Emitter {
         if (logger.isLoggable(Level.FINE)) {
             logger.fine(String.format("server disconnect (%s)", this.nsp));
         }
+        recovered = false;
         this.destroy();
         this.onclose("io server disconnect");
     }
@@ -498,7 +506,7 @@ public class Socket extends Emitter {
 
     /**
      * A property on the socket instance that is equal to the underlying engine.io socket id.
-     *
+     * <p>
      * The value is present once the socket has connected, is removed when the socket disconnects and is updated if the socket reconnects.
      *
      * @return a socket id
@@ -565,6 +573,14 @@ public class Socket extends Emitter {
             }
         }
         return this;
+    }
+
+    public String getLastOffset() {
+        return this._lastOffset;
+    }
+
+    public boolean isRecovered() {
+        return recovered;
     }
 }
 

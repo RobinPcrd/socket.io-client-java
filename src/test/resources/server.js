@@ -12,17 +12,34 @@ if (process.env.SSL) {
 
 var io = require('socket.io')(server, {
   pingInterval: 2000,
-  wsEngine: 'ws'
+  //wsEngine: 'ws',
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000,
+    skipMiddlewares: true,
+  }
 });
 var port = process.env.PORT || 3000;
 var nsp = process.argv[2] || '/';
 var slice = Array.prototype.slice;
 
+// Disable recovery on demand
+io.use((socket, next) => {
+  if (socket.handshake.auth?.noRecovery === true) {
+    socket.handshake.auth._pid = 'invalid-' + Date.now();
+  }
+  next();
+});
+
 const fooNsp = io.of('/foo');
 
 fooNsp.on('connection', (socket) => {
-  socket.on('room', (...args) => {
-    fooNsp.to(socket.id).emit.apply(fooNsp, ['roomBack'].concat(args));
+  socket.on('broadcast', function(data) {
+    var args = slice.call(arguments);
+    fooNsp.emit('broadcastBack', ...args);
+  });
+
+  socket.on('room', (arg) => {
+    fooNsp.to(socket.id).emit("roomBack", arg);
   });
 });
 
@@ -49,6 +66,15 @@ io.of("/no").use((socket, next) => {
 });
 
 io.of(nsp).on('connection', function(socket) {
+  //console.log('=== Handshake Debug ===');
+  //console.log('Socket ID:', socket.id);
+  //console.log('Auth:', socket.handshake.auth);
+  //console.log('Query:', socket.handshake.query);
+  //console.log('Headers:', socket.handshake.headers);
+  //console.log('Full handshake:', JSON.stringify(socket.handshake, null, 2));
+  //console.log('Recovered:', socket.recovered);
+  //console.log('=======================');
+
   socket.send('hello client');
 
   socket.on('message', function() {
@@ -91,7 +117,7 @@ io.of(nsp).on('connection', function(socket) {
 
   socket.on('broadcast', function(data) {
     var args = slice.call(arguments);
-    socket.broadcast.emit.apply(socket, ['broadcastBack'].concat(args));
+    io.emit('broadcastBack', ...args);
   });
 
   socket.on('room', (arg) => {
@@ -112,6 +138,16 @@ io.of(nsp).on('connection', function(socket) {
 
   socket.on('getHandshake', function(cb) {
     cb(socket.handshake);
+  });
+
+  socket.on('startBufferTest', () => {
+    console.log('Starting buffer test scenario');
+
+    // Send message after 1.5 seconds (while client will be disconnected)
+    setTimeout(() => {
+      console.log('Sending buffered message with offset');
+      socket.emit('message', { text: 'buffered-message' });
+    }, 1500);
   });
 });
 
