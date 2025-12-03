@@ -201,7 +201,9 @@ public class SocketTest extends Connection {
         final BlockingQueue<Optional> values = new LinkedBlockingQueue<>();
 
         IO.Options opts = new IO.Options();
-        opts.auth = singletonMap("token", "abcd");
+        JSONObject auth = new JSONObject();
+        auth.put("token", "abcd");
+        opts.auth = auth;
         socket = client("/abc", opts);
         socket.on("handshake", new Emitter.Listener() {
             @Override
@@ -402,20 +404,14 @@ public class SocketTest extends Connection {
 
         socket = client();
 
-        socket.on("message", new Emitter.Listener() {
-            @Override
-            public void call(Object... args) {
-                socket.emit("echo", 1, "2", new byte[] { 3 });
+        socket.on("message", args -> {
+            socket.emit("echo", 1, "2", new byte[] { 3 });
 
-                socket.onAnyIncoming(new Emitter.Listener() {
-                    @Override
-                    public void call(Object... args) {
-                        for (Object arg : args) {
-                            values.offer(arg);
-                        }
-                    }
-                });
-            }
+            socket.onAnyIncoming(args1 -> {
+                for (Object arg : args1) {
+                    values.offer(arg);
+                }
+            });
         });
 
         socket.connect();
@@ -434,12 +430,9 @@ public class SocketTest extends Connection {
 
         socket.emit("echo", 1, "2", new byte[] { 3 });
 
-        socket.onAnyOutgoing(new Emitter.Listener() {
-            @Override
-            public void call(Object... args) {
-                for (Object arg : args) {
-                    values.offer(arg);
-                }
+        socket.onAnyOutgoing(args -> {
+            for (Object arg : args) {
+                values.offer(arg);
             }
         });
 

@@ -16,12 +16,13 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
-import static org.junit.Assert.assertThat;
+import static org.junit.Assert.*;
 
 @RunWith(JUnit4.class)
 public class ConnectionTest extends Connection {
@@ -72,38 +73,28 @@ public class ConnectionTest extends Connection {
     @Test(timeout = TIMEOUT)
     public void workWithAcks() throws InterruptedException {
         final BlockingQueue<Object> values = new LinkedBlockingQueue<>();
-        socket = client();
-        socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
-            @Override
-            public void call(Object... objects) {
-                socket.emit("callAck");
-                socket.on("ack", new Emitter.Listener() {
-                    @Override
-                    public void call(Object... args) {
-                        Ack fn = (Ack) args[0];
-                        JSONObject data = new JSONObject();
-                        try {
-                            data.put("test", true);
-                        } catch (JSONException e) {
-                            throw new AssertionError(e);
-                        }
-                        fn.call(5, data);
+        socket = client();socket.on(Socket.EVENT_CONNECT, objects -> {
+            socket.on("ack", args -> {
+                Ack fn = (Ack) args[0];
+                JSONObject data = new JSONObject();
+                try {
+                    data.put("test", true);
+                } catch (JSONException e) {
+                    throw new AssertionError(e);
+                }
+                fn.call(5, data);
+            });
+            socket.on("ackBack", args -> {
+                JSONObject data = (JSONObject)args[1];
+                try {
+                    if ((Integer)args[0] == 5 && data.getBoolean("test")) {
+                        values.offer("done");
                     }
-                });
-                socket.on("ackBack", new Emitter.Listener() {
-                    @Override
-                    public void call(Object... args) {
-                        JSONObject data = (JSONObject)args[1];
-                        try {
-                            if ((Integer)args[0] == 5 && data.getBoolean("test")) {
-                                values.offer("done");
-                            }
-                        } catch (JSONException e) {
-                            throw new AssertionError(e);
-                        }
-                    }
-                });
-            }
+                } catch (JSONException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            socket.emit("callAck");
         });
         socket.connect();
         values.take();
@@ -302,12 +293,9 @@ public class ConnectionTest extends Connection {
     public void reconnectByDefault() throws InterruptedException {
         final BlockingQueue<Object> values = new LinkedBlockingQueue<>();
         socket = client();
-        socket.io().on(Manager.EVENT_RECONNECT, new Emitter.Listener() {
-            @Override
-            public void call(Object... objects) {
-                socket.close();
-                values.offer("done");
-            }
+        socket.io().on(Manager.EVENT_RECONNECT, objects -> {
+            socket.close();
+            values.offer("done");
         });
         socket.open();
         new Timer().schedule(new TimerTask() {
@@ -349,29 +337,20 @@ public class ConnectionTest extends Connection {
     public void reconnectAutomaticallyAfterReconnectingManually() throws InterruptedException {
         final BlockingQueue<Object> values = new LinkedBlockingQueue<>();
         socket = client();
-        socket.once(Socket.EVENT_CONNECT, new Emitter.Listener() {
-            @Override
-            public void call(Object... args) {
+        socket.once(Socket.EVENT_CONNECT, args -> {
+            socket.disconnect();
+        }).once(Socket.EVENT_DISCONNECT, args -> {
+            socket.io().on(Manager.EVENT_RECONNECT, args1 -> {
                 socket.disconnect();
-            }
-        }).once(Socket.EVENT_DISCONNECT, new Emitter.Listener() {
-            @Override
-            public void call(Object... args) {
-                socket.io().on(Manager.EVENT_RECONNECT, new Emitter.Listener() {
-                    @Override
-                    public void call(Object... args) {
-                        socket.disconnect();
-                        values.offer("done");
-                    }
-                });
-                socket.connect();
-                new Timer().schedule(new TimerTask() {
-                    @Override
-                    public void run() {
-                        socket.io().engine.close();
-                    }
-                }, 500);
-            }
+                values.offer("done");
+            });
+            socket.connect();
+            new Timer().schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    socket.io().engine.close();
+                }
+            }, 500);
         });
         socket.connect();
         values.take();
@@ -920,5 +899,63 @@ public class ConnectionTest extends Connection {
         assertThat((byte[])values.take(), is(buf));
         assertThat((String)values.take(), is("please arrive second"));
         socket.close();
+    }
+
+    @Test(timeout = TIMEOUT)
+    public void shouldReceiveBufferedEventAfterReconnect() throws InterruptedException {
+        final BlockingQueue<String> events = new LinkedBlockingQueue<>();
+
+        socket = client();
+        socket.on(Socket.EVENT_CONNECT, args -> {
+            if (!socket.isRecovered()) {
+                events.offer("first-connect");
+                // Tell server to start buffering scenario
+                socket.emit("startBufferTest");
+
+                // Disconnect engine after 1 second
+                Timer timer = new Timer();
+                timer.schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        socket.io().engine.close();
+                    }
+                }, 1000);
+            } else {
+                // Reconnected with recovery
+                events.offer("reconnected");
+            }
+        });
+
+        socket.on(Socket.EVENT_DISCONNECT, args -> {
+            events.offer("disconnected");
+            // Reconnect after 2 seconds
+            Timer timer = new Timer();
+            timer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    socket.connect();
+                }
+            }, 2000);
+        });
+
+        socket.on("message", args -> {
+            if (args[0] instanceof JSONObject) {
+                JSONObject data = (JSONObject) args[0];
+                String text = data.optString("text");
+                System.out.println("Received message: " + text);
+                events.offer(text);
+            }
+        });
+
+        socket.connect();
+
+        // Verify sequence
+        assertEquals("first-connect", events.poll(TIMEOUT, TimeUnit.MILLISECONDS));
+        assertEquals("disconnected", events.poll(TIMEOUT, TimeUnit.MILLISECONDS));
+        assertEquals("buffered-message", events.poll(TIMEOUT, TimeUnit.MILLISECONDS));
+        assertEquals("reconnected", events.poll(TIMEOUT, TimeUnit.MILLISECONDS));
+
+        assertTrue("Should have recovered session", socket.isRecovered());
+        assertNotNull("Should have tracked offset", socket.getLastOffset());
     }
 }
