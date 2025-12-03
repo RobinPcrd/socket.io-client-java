@@ -4,7 +4,6 @@ import io.socket.emitter.Emitter;
 import io.socket.parser.Packet;
 import io.socket.parser.Parser;
 import io.socket.thread.EventThread;
-import org.jetbrains.annotations.Nullable;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -576,7 +575,6 @@ public class Socket extends Emitter {
         return this;
     }
 
-    @Nullable
     public String getLastOffset() {
         return this._lastOffset;
     }
