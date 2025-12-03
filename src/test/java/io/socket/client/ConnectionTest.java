@@ -942,7 +942,6 @@ public class ConnectionTest extends Connection {
             if (args[0] instanceof JSONObject) {
                 JSONObject data = (JSONObject) args[0];
                 String text = data.optString("text");
-                System.out.println("Received message: " + text);
                 events.offer(text);
             }
         });

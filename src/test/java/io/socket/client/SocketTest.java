@@ -114,7 +114,17 @@ public class SocketTest extends Connection {
     @Test(timeout = TIMEOUT)
     public void shouldChangeSocketIdUponReconnection() throws InterruptedException {
         final BlockingQueue<Optional> values = new LinkedBlockingQueue<>();
-        socket = client();
+
+        IO.Options opts = createOptions();
+        opts.forceNew = true;
+        try {
+            JSONObject auth = new JSONObject();
+            auth.put("noRecovery", true);
+            opts.auth = auth;
+        } catch (JSONException ignored) {
+        }
+
+        socket = client(opts);
         socket.once(Socket.EVENT_CONNECT, new Emitter.Listener() {
             @Override
             public void call(Object... objects) {
@@ -160,7 +170,7 @@ public class SocketTest extends Connection {
         socket.emit("getHandshake", new Ack() {
             @Override
             public void call(Object... args) {
-                JSONObject handshake = (JSONObject)args[0];
+                JSONObject handshake = (JSONObject) args[0];
                 values.offer(Optional.ofNullable(handshake));
             }
         });
@@ -181,7 +191,7 @@ public class SocketTest extends Connection {
         socket.on("handshake", new Emitter.Listener() {
             @Override
             public void call(Object... args) {
-                JSONObject handshake = (JSONObject)args[0];
+                JSONObject handshake = (JSONObject) args[0];
                 values.offer(Optional.ofNullable(handshake));
             }
         });
@@ -208,7 +218,7 @@ public class SocketTest extends Connection {
         socket.on("handshake", new Emitter.Listener() {
             @Override
             public void call(Object... args) {
-                JSONObject handshake = (JSONObject)args[0];
+                JSONObject handshake = (JSONObject) args[0];
                 values.offer(Optional.ofNullable(handshake));
             }
         });
@@ -375,7 +385,7 @@ public class SocketTest extends Connection {
         socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
             @Override
             public void call(Object... args) {
-                socket.emit("ack", 1, "2", new byte[] { 3 }, new AckWithTimeout(200) {
+                socket.emit("ack", 1, "2", new byte[]{3}, new AckWithTimeout(200) {
                     @Override
                     public void onTimeout() {
                         fail();
@@ -395,7 +405,7 @@ public class SocketTest extends Connection {
 
         assertThat((Integer) values.take(), is(1));
         assertThat((String) values.take(), is("2"));
-        assertThat((byte[]) values.take(), is(new byte[] { 3 }));
+        assertThat((byte[]) values.take(), is(new byte[]{3}));
     }
 
     @Test(timeout = TIMEOUT)
@@ -405,7 +415,7 @@ public class SocketTest extends Connection {
         socket = client();
 
         socket.on("message", args -> {
-            socket.emit("echo", 1, "2", new byte[] { 3 });
+            socket.emit("echo", 1, "2", new byte[]{3});
 
             socket.onAnyIncoming(args1 -> {
                 for (Object arg : args1) {
@@ -419,7 +429,7 @@ public class SocketTest extends Connection {
         assertThat((String) values.take(), is("echoBack"));
         assertThat((Integer) values.take(), is(1));
         assertThat((String) values.take(), is("2"));
-        assertThat((byte[]) values.take(), is(new byte[] { 3 }));
+        assertThat((byte[]) values.take(), is(new byte[]{3}));
     }
 
     @Test(timeout = TIMEOUT)
@@ -428,7 +438,7 @@ public class SocketTest extends Connection {
 
         socket = client();
 
-        socket.emit("echo", 1, "2", new byte[] { 3 });
+        socket.emit("echo", 1, "2", new byte[]{3});
 
         socket.onAnyOutgoing(args -> {
             for (Object arg : args) {
@@ -441,6 +451,6 @@ public class SocketTest extends Connection {
         assertThat((String) values.take(), is("echo"));
         assertThat((Integer) values.take(), is(1));
         assertThat((String) values.take(), is("2"));
-        assertThat((byte[]) values.take(), is(new byte[] { 3 }));
+        assertThat((byte[]) values.take(), is(new byte[]{3}));
     }
 }
