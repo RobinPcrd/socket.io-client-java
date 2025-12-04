@@ -30,9 +30,16 @@ jobs:
           gpg-passphrase: SIGNING_PASSWORD
 
       - name: Set version (if provided)
-        if: github.event.inputs.version != ''
         run: |
-          mvn versions:set -DnewVersion=${{ github.event.inputs.version }} -DgenerateBackupPoms=false
+          if [ "${{ github.event_name }}" = "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          elif [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            exit 0
+          fi
+          VERSION="${VERSION#v}"
+          mvn versions:set -DnewVersion=$VERSION -DgenerateBackupPoms=false
 
       - name: Build and publish
         env:
