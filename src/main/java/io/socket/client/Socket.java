@@ -121,12 +121,15 @@ public class Socket extends Emitter {
      * Connects the socket.
      */
     public Socket open() {
-        EventThread.exec(() -> {
-            if (Socket.this.connected || Socket.this.io.isReconnecting()) return;
+        EventThread.exec(new Runnable() {
+            @Override
+            public void run() {
+                if (Socket.this.connected || Socket.this.io.isReconnecting()) return;
 
-            Socket.this.subEvents();
-            Socket.this.io.open(); // ensure open
-            if (Manager.ReadyState.OPEN == Socket.this.io.readyState) Socket.this.onopen();
+                Socket.this.subEvents();
+                Socket.this.io.open(); // ensure open
+                if (Manager.ReadyState.OPEN == Socket.this.io.readyState) Socket.this.onopen();
+            }
         });
         return this;
     }

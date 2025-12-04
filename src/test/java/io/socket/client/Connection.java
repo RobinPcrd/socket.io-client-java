@@ -55,33 +55,39 @@ public abstract class Connection {
     }
 
     private Future<?> startServerOutput(Process process, String serverName, CountDownLatch latch) {
-        return serverService.submit(() -> {
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream()));
-            String line;
-            try {
-                line = reader.readLine();
-                latch.countDown();
-                do {
-                    logger.fine(serverName + " SERVER OUT: " + line);
-                } while ((line = reader.readLine()) != null);
-            } catch (IOException e) {
-                logger.warning(e.getMessage());
+        return serverService.submit(new Runnable() {
+            @Override
+            public void run() {
+                BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(process.getInputStream()));
+                String line;
+                try {
+                    line = reader.readLine();
+                    latch.countDown();
+                    do {
+                        logger.fine(serverName + " SERVER OUT: " + line);
+                    } while ((line = reader.readLine()) != null);
+                } catch (IOException e) {
+                    logger.warning(e.getMessage());
+                }
             }
         });
     }
 
     private Future<?> startServerError(Process process, String serverName) {
-        return serverService.submit(() -> {
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getErrorStream()));
-            String line;
-            try {
-                while ((line = reader.readLine()) != null) {
-                    logger.fine(serverName + " SERVER ERR: " + line);
+        return serverService.submit(new Runnable() {
+            @Override
+            public void run() {
+                BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(process.getErrorStream()));
+                String line;
+                try {
+                    while ((line = reader.readLine()) != null) {
+                        logger.fine(serverName + " SERVER ERR: " + line);
+                    }
+                } catch (IOException e) {
+                    logger.warning(e.getMessage());
                 }
-            } catch (IOException e) {
-                logger.warning(e.getMessage());
             }
         });
     }
