@@ -40,7 +40,7 @@ jobs:
           MAVEN_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: |
-          mvn clean deploy \
+          mvn clean deploy -P publish \
             --no-transfer-progress \
             --batch-mode \
 #           -DskipTests \

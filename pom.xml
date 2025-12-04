@@ -267,17 +267,28 @@
           <showDeprecation>true</showDeprecation>
         </configuration>
       </plugin>
-      <plugin>
-        <groupId>org.sonatype.central</groupId>
-        <artifactId>central-publishing-maven-plugin</artifactId>
-        <version>0.6.0</version>
-        <extensions>true</extensions>
-        <configuration>
-          <publishingServerId>central</publishingServerId>
-          <autoPublish>true</autoPublish>
-          <waitUntil>uploaded</waitUntil>
-        </configuration>
-      </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <id>publish</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>0.6.0</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>true</autoPublish>
+              <waitUntil>uploaded</waitUntil>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
 </project>
