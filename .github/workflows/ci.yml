@@ -38,6 +38,9 @@ jobs:
           distribution: 'zulu'
           cache: 'maven'
 
+      - name: Check Maven version
+        run: mvn -v
+
       - name: Cache Maven packages
         uses: actions/cache@v4
         with:
