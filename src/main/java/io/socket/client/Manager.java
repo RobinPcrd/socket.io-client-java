@@ -79,7 +79,7 @@ public class Manager extends Emitter {
     private final List<Packet> packetBuffer = new ArrayList<>();
     private final Queue<On.Handle> subs = new LinkedList<>();;
     private final Options opts;
-    /*package*/ io.socket.engineio.client.Socket engine;
+    public io.socket.engineio.client.Socket engine;
     private final Parser.Encoder encoder;
     private final Parser.Decoder decoder;
 
@@ -446,7 +446,7 @@ public class Manager extends Emitter {
         this.decoder.destroy();
     }
 
-    /*package*/ void close() {
+    public void close() {
         logger.fine("disconnect");
         this.skipReconnect = true;
         this.reconnecting = false;
