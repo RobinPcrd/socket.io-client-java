@@ -215,15 +215,24 @@ public class ServerConnectionTest extends Connection {
         final BlockingQueue<Object> values = new LinkedBlockingQueue<>();
 
         socket = client();
-        socket.on(Socket.EVENT_CONNECT, objects -> {
-            socket2 = client();
+        socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
+            @Override
+            public void call(Object... objects) {
+                socket2 = client();
 
-            socket2.on(Socket.EVENT_CONNECT, objects1 -> {
-                socket2.emit("broadcast", "hi");
-            });
-            socket2.connect();
-        }).on("broadcastBack", args -> {
-            values.offer(args);
+                socket2.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
+                    @Override
+                    public void call(Object... objects) {
+                        socket2.emit("broadcast", "hi");
+                    }
+                });
+                socket2.connect();
+            }
+        }).on("broadcastBack", new Emitter.Listener() {
+            @Override
+            public void call(Object... args) {
+                values.offer(args);
+            }
         });
         socket.connect();
 
@@ -240,7 +249,17 @@ public class ServerConnectionTest extends Connection {
         final BlockingQueue<Object> values = new LinkedBlockingQueue<>();
 
         socket = client();
-        socket.on(Socket.EVENT_CONNECT, objects -> socket.emit("room", "hi")).on("roomBack", args -> values.offer(args));
+        socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
+            @Override
+            public void call(Object... objects) {
+                socket.emit("room", "hi");
+            }
+        }).on("roomBack", new Emitter.Listener() {
+            @Override
+            public void call(Object... args) {
+                values.offer(args);
+            }
+        });
         socket.connect();
 
         Object[] args = (Object[]) values.take();
