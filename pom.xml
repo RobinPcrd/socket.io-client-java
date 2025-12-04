@@ -1,12 +1,12 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>io.socket</groupId>
+  <groupId>io.github.robinpcrd</groupId>
   <artifactId>socket.io-client</artifactId>
   <version>2.2.0-SNAPSHOT</version>
   <packaging>jar</packaging>
   <name>socket.io-client</name>
-  <description>Socket.IO Client Library for Java</description>
-  <url>https://github.com/socketio/socket.io-client-java</url>
+  <description>Socket.IO Client Library for Java (Fork)</description>
+  <url>https://github.com/RobinPcrd/socket.io-client-java</url>
 
   <parent>
     <groupId>org.sonatype.oss</groupId>
@@ -27,9 +27,9 @@
   </licenses>
 
   <scm>
-    <url>https://github.com/socketio/socket.io-client-java</url>
-    <connection>scm:git:https://github.com/socketio/socket.io-client-java.git</connection>
-    <developerConnection>scm:git:https://github.com/socketio/socket.io-client-java.git</developerConnection>
+    <url>https://github.com/RobinPcrd/socket.io-client-java</url>
+    <connection>scm:git:https://github.com/RobinPcrd/socket.io-client-java.git</connection>
+    <developerConnection>scm:git:https://github.com/RobinPcrd/socket.io-client-java.git</developerConnection>
     <tag>HEAD</tag>
   </scm>
 
@@ -38,6 +38,11 @@
       <id>nkzawa</id>
       <name>Naoyuki Kanezawa</name>
       <email>naoyuki.kanezawa@gmail.com</email>
+    </developer>
+    <developer>
+      <id>robinpcrd</id>
+      <name>Robin Picard</name>
+      <email>robin.picard.dev@gmail.com</email>
     </developer>
   </developers>
 
@@ -55,7 +60,7 @@
   </repositories>
 
   <prerequisites>
-    <maven>3.0.4</maven>
+    <maven>3.6.3</maven>
   </prerequisites>
 
   <dependencies>
@@ -92,11 +97,11 @@
   <distributionManagement>
     <snapshotRepository>
       <id>ossrh</id>
-      <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+      <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
     </snapshotRepository>
     <repository>
       <id>ossrh</id>
-      <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+      <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
     </repository>
   </distributionManagement>
 
