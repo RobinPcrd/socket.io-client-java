@@ -25,8 +25,9 @@ var slice = Array.prototype.slice;
 // Disable recovery on demand
 io.use((socket, next) => {
   if (socket.handshake.auth?.noRecovery === true) {
-    console.log(socket.handshake.auth);
-    socket.handshake.auth.pid = 'invalid-' + Date.now();
+    console.log('Disabling recovery for socket', socket.id);
+    //socket.conn.id = 'no-recovery-' + Date.now();
+    socket.conn.recovered = false;
   }
   next();
 });
