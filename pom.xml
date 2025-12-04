@@ -47,6 +47,7 @@
     </developer>
   </developers>
 
+  <!--
   <repositories>
     <repository>
       <id>sonatype-oss-public</id>
@@ -59,10 +60,13 @@
       </snapshots>
     </repository>
   </repositories>
+  -->
 
+  <!--
   <prerequisites>
     <maven>3.6.3</maven>
   </prerequisites>
+  -->
 
   <dependencies>
     <dependency>
@@ -95,18 +99,18 @@
     </dependency>
   </dependencies>
 
+  <!--
   <distributionManagement>
-    <!--
     <snapshotRepository>
       <id>central</id>
       <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
     </snapshotRepository>
-    -->
     <repository>
       <id>central</id>
       <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
     </repository>
   </distributionManagement>
+  -->
 
   <build>
     <plugins>
