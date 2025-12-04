@@ -117,12 +117,7 @@ public class SocketTest extends Connection {
 
         IO.Options opts = createOptions();
         opts.forceNew = true;
-        try {
-            JSONObject auth = new JSONObject();
-            auth.put("noRecovery", true);
-            opts.auth = auth;
-        } catch (JSONException ignored) {
-        }
+        opts.port = Connection.NO_RECOVERY_PORT;
 
         socket = client(opts);
         socket.once(Socket.EVENT_CONNECT, new Emitter.Listener() {
