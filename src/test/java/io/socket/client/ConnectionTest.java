@@ -77,24 +77,30 @@ public class ConnectionTest extends Connection {
         socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
             @Override
             public void call(Object... objects) {
-                socket.on("ack", args -> {
-                    Ack fn = (Ack) args[0];
-                    JSONObject data = new JSONObject();
-                    try {
-                        data.put("test", true);
-                    } catch (JSONException e) {
-                        throw new AssertionError(e);
-                    }
-                    fn.call(5, data);
-                });
-                socket.on("ackBack", args -> {
-                    JSONObject data = (JSONObject) args[1];
-                    try {
-                        if ((Integer) args[0] == 5 && data.getBoolean("test")) {
-                            values.offer("done");
+                socket.on("ack", new Emitter.Listener() {
+                    @Override
+                    public void call(Object... args) {
+                        Ack fn = (Ack) args[0];
+                        JSONObject data = new JSONObject();
+                        try {
+                            data.put("test", true);
+                        } catch (JSONException e) {
+                            throw new AssertionError(e);
                         }
-                    } catch (JSONException e) {
-                        throw new AssertionError(e);
+                        fn.call(5, data);
+                    }
+                });
+                socket.on("ackBack", new Emitter.Listener() {
+                    @Override
+                    public void call(Object... args) {
+                        JSONObject data = (JSONObject)args[1];
+                        try {
+                            if ((Integer)args[0] == 5 && data.getBoolean("test")) {
+                                values.offer("done");
+                            }
+                        } catch (JSONException e) {
+                            throw new AssertionError(e);
+                        }
                     }
                 });
                 socket.emit("callAck");
