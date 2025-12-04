@@ -54,7 +54,7 @@ public abstract class Connection {
         return Runtime.getRuntime().exec(String.format(script, nsp()), createEnv(port));
     }
 
-    private Future<?> startServerOutput(Process process, String serverName, CountDownLatch latch) {
+    private Future<?> startServerOutput(final Process process, String serverName, CountDownLatch latch) {
         return serverService.submit(new Runnable() {
             @Override
             public void run() {
@@ -74,7 +74,7 @@ public abstract class Connection {
         });
     }
 
-    private Future<?> startServerError(Process process, String serverName) {
+    private Future<?> startServerError(final Process process, String serverName) {
         return serverService.submit(new Runnable() {
             @Override
             public void run() {
