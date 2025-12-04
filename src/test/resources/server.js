@@ -22,16 +22,6 @@ var port = process.env.PORT || 3000;
 var nsp = process.argv[2] || '/';
 var slice = Array.prototype.slice;
 
-// Disable recovery on demand
-io.use((socket, next) => {
-  if (socket.handshake.auth?.noRecovery === true) {
-    console.log('Disabling recovery for socket', socket.id);
-    //socket.conn.id = 'no-recovery-' + Date.now();
-    socket.conn.recovered = false;
-  }
-  next();
-});
-
 const fooNsp = io.of('/foo');
 
 fooNsp.on('connection', (socket) => {
