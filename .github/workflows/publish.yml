@@ -46,7 +46,7 @@ jobs:
           mvn clean deploy \
             --no-transfer-progress \
             --batch-mode \
-#           -DskipTests \
+            -DskipTests \
 #           -Dgpg.keyname=${{ secrets.SIGNING_KEY_ID }} \
 #           -Dgpg.passphrase=${{ secrets.SIGNING_PASSWORD }} \
 #           -Dgpg.pinentry-mode=loopback \

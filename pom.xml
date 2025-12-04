@@ -9,11 +9,13 @@
   <description>Socket.IO Client Library for Java (Fork)</description>
   <url>https://github.com/RobinPcrd/socket.io-client-java</url>
 
+  <!--
   <parent>
     <groupId>org.sonatype.oss</groupId>
     <artifactId>oss-parent</artifactId>
     <version>7</version>
   </parent>
+  -->
 
   <properties>
     <github.global.server>github</github.global.server>
@@ -265,6 +267,17 @@
           </compilerArgs>
           <showWarnings>true</showWarnings>
           <showDeprecation>true</showDeprecation>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.sonatype.central</groupId>
+        <artifactId>central-publishing-maven-plugin</artifactId>
+        <version>0.6.0</version>
+        <extensions>true</extensions>
+        <configuration>
+          <publishingServerId>central</publishingServerId>
+          <autoPublish>true</autoPublish>
+          <waitUntil>uploaded</waitUntil>
         </configuration>
       </plugin>
     </plugins>
