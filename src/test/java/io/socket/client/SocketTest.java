@@ -409,14 +409,20 @@ public class SocketTest extends Connection {
 
         socket = client();
 
-        socket.on("message", args -> {
-            socket.emit("echo", 1, "2", new byte[]{3});
+        socket.on("message", new Emitter.Listener() {
+            @Override
+            public void call(Object... args) {
+                socket.emit("echo", 1, "2", new byte[] { 3 });
 
-            socket.onAnyIncoming(args1 -> {
-                for (Object arg : args1) {
-                    values.offer(arg);
-                }
-            });
+                socket.onAnyIncoming(new Emitter.Listener() {
+                    @Override
+                    public void call(Object... args) {
+                        for (Object arg : args) {
+                            values.offer(arg);
+                        }
+                    }
+                });
+            }
         });
 
         socket.connect();
@@ -435,9 +441,12 @@ public class SocketTest extends Connection {
 
         socket.emit("echo", 1, "2", new byte[]{3});
 
-        socket.onAnyOutgoing(args -> {
-            for (Object arg : args) {
-                values.offer(arg);
+        socket.onAnyOutgoing(new Emitter.Listener() {
+            @Override
+            public void call(Object... args) {
+                for (Object arg : args) {
+                    values.offer(arg);
+                }
             }
         });
 

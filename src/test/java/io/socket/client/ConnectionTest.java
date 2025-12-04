@@ -73,28 +73,32 @@ public class ConnectionTest extends Connection {
     @Test(timeout = TIMEOUT)
     public void workWithAcks() throws InterruptedException {
         final BlockingQueue<Object> values = new LinkedBlockingQueue<>();
-        socket = client();socket.on(Socket.EVENT_CONNECT, objects -> {
-            socket.on("ack", args -> {
-                Ack fn = (Ack) args[0];
-                JSONObject data = new JSONObject();
-                try {
-                    data.put("test", true);
-                } catch (JSONException e) {
-                    throw new AssertionError(e);
-                }
-                fn.call(5, data);
-            });
-            socket.on("ackBack", args -> {
-                JSONObject data = (JSONObject)args[1];
-                try {
-                    if ((Integer)args[0] == 5 && data.getBoolean("test")) {
-                        values.offer("done");
+        socket = client();
+        socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
+            @Override
+            public void call(Object... objects) {
+                socket.on("ack", args -> {
+                    Ack fn = (Ack) args[0];
+                    JSONObject data = new JSONObject();
+                    try {
+                        data.put("test", true);
+                    } catch (JSONException e) {
+                        throw new AssertionError(e);
                     }
-                } catch (JSONException e) {
-                    throw new AssertionError(e);
-                }
-            });
-            socket.emit("callAck");
+                    fn.call(5, data);
+                });
+                socket.on("ackBack", args -> {
+                    JSONObject data = (JSONObject) args[1];
+                    try {
+                        if ((Integer) args[0] == 5 && data.getBoolean("test")) {
+                            values.offer("done");
+                        }
+                    } catch (JSONException e) {
+                        throw new AssertionError(e);
+                    }
+                });
+                socket.emit("callAck");
+            }
         });
         socket.connect();
         values.take();
@@ -147,14 +151,14 @@ public class ConnectionTest extends Connection {
                 socket.on("ackBack", new Emitter.Listener() {
                     @Override
                     public void call(Object... args) {
-                        byte[] data = (byte[])args[0];
+                        byte[] data = (byte[]) args[0];
                         values.offer(data);
                     }
                 });
             }
         });
         socket.connect();
-        Assert.assertArrayEquals(buf, (byte[])values.take());
+        Assert.assertArrayEquals(buf, (byte[]) values.take());
         socket.close();
     }
 
@@ -171,13 +175,13 @@ public class ConnectionTest extends Connection {
 
                     @Override
                     public void call(Object... args) {
-                       values.offer(args[0]);
+                        values.offer(args[0]);
                     }
                 });
             }
         });
         socket.connect();
-        Assert.assertArrayEquals(buf, (byte[])values.take());
+        Assert.assertArrayEquals(buf, (byte[]) values.take());
         socket.close();
     }
 
@@ -198,19 +202,19 @@ public class ConnectionTest extends Connection {
             }
         });
         socket.connect();
-        assertThat((Boolean)values.take(), is(false));
+        assertThat((Boolean) values.take(), is(false));
         socket.close();
     }
 
     @Test(timeout = TIMEOUT)
     public void receiveUTF8MultibyteCharacters() throws InterruptedException {
         final BlockingQueue<Object> values = new LinkedBlockingQueue<>();
-        final String[] correct = new String[] {
-            "てすと",
-            "Я Б Г Д Ж Й",
-            "Ä ä Ü ü ß",
-            "utf8 — string",
-            "utf8 — string"
+        final String[] correct = new String[]{
+                "てすと",
+                "Я Б Г Д Ж Й",
+                "Ä ä Ü ü ß",
+                "utf8 — string",
+                "utf8 — string"
         };
 
         socket = client();
@@ -230,7 +234,7 @@ public class ConnectionTest extends Connection {
         });
         socket.connect();
         for (String expected : correct) {
-            assertThat((String)values.take(), is(expected));
+            assertThat((String) values.take(), is(expected));
         }
         socket.close();
     }
@@ -293,9 +297,12 @@ public class ConnectionTest extends Connection {
     public void reconnectByDefault() throws InterruptedException {
         final BlockingQueue<Object> values = new LinkedBlockingQueue<>();
         socket = client();
-        socket.io().on(Manager.EVENT_RECONNECT, objects -> {
-            socket.close();
-            values.offer("done");
+        socket.io().on(Manager.EVENT_RECONNECT, new Emitter.Listener() {
+            @Override
+            public void call(Object... objects) {
+                socket.close();
+                values.offer("done");
+            }
         });
         socket.open();
         new Timer().schedule(new TimerTask() {
@@ -337,20 +344,29 @@ public class ConnectionTest extends Connection {
     public void reconnectAutomaticallyAfterReconnectingManually() throws InterruptedException {
         final BlockingQueue<Object> values = new LinkedBlockingQueue<>();
         socket = client();
-        socket.once(Socket.EVENT_CONNECT, args -> {
-            socket.disconnect();
-        }).once(Socket.EVENT_DISCONNECT, args -> {
-            socket.io().on(Manager.EVENT_RECONNECT, args1 -> {
+        socket.once(Socket.EVENT_CONNECT, new Emitter.Listener() {
+            @Override
+            public void call(Object... args) {
                 socket.disconnect();
-                values.offer("done");
-            });
-            socket.connect();
-            new Timer().schedule(new TimerTask() {
-                @Override
-                public void run() {
-                    socket.io().engine.close();
-                }
-            }, 500);
+            }
+        }).once(Socket.EVENT_DISCONNECT, new Emitter.Listener() {
+            @Override
+            public void call(Object... args) {
+                socket.io().on(Manager.EVENT_RECONNECT, new Emitter.Listener() {
+                    @Override
+                    public void call(Object... args) {
+                        socket.disconnect();
+                        values.offer("done");
+                    }
+                });
+                socket.connect();
+                new Timer().schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        socket.io().engine.close();
+                    }
+                }, 500);
+            }
         });
         socket.connect();
         values.take();
@@ -369,7 +385,7 @@ public class ConnectionTest extends Connection {
         manager.once(Manager.EVENT_RECONNECT_FAILED, new Emitter.Listener() {
             @Override
             public void call(Object... args) {
-                final int[] reconnects = new int[] {0};
+                final int[] reconnects = new int[]{0};
                 Emitter.Listener reconnectCb = new Emitter.Listener() {
                     @Override
                     public void call(Object... args) {
@@ -388,7 +404,7 @@ public class ConnectionTest extends Connection {
             }
         });
         socket.connect();
-        assertThat((Integer)values.take(), is(2));
+        assertThat((Integer) values.take(), is(2));
         socket.close();
         manager.close();
     }
@@ -405,10 +421,10 @@ public class ConnectionTest extends Connection {
         final Manager manager = new Manager(uri(), opts);
         socket = manager.socket("/timeout");
 
-        final int[] reconnects = new int[] {0};
-        final boolean[] increasingDelay = new boolean[] {true};
-        final long[] startTime = new long[] {0};
-        final long[] prevDelay = new long[] {0};
+        final int[] reconnects = new int[]{0};
+        final boolean[] increasingDelay = new boolean[]{true};
+        final long[] startTime = new long[]{0};
+        final long[] prevDelay = new long[]{0};
 
         manager.on(Manager.EVENT_ERROR, new Emitter.Listener() {
             @Override
@@ -469,7 +485,7 @@ public class ConnectionTest extends Connection {
             }
         });
         socket.connect();
-        assertThat((Boolean)values.take(), is(true));
+        assertThat((Boolean) values.take(), is(true));
     }
 
     @Test(timeout = TIMEOUT)
@@ -610,7 +626,7 @@ public class ConnectionTest extends Connection {
         opts.reconnectionDelay = 10;
         final Manager manager = new Manager(URI.create("http://localhost:3940"), opts);
         socket = manager.socket("/asd");
-        final int[] reconnects = new int[] {0};
+        final int[] reconnects = new int[]{0};
         Emitter.Listener cb = new Emitter.Listener() {
             @Override
             public void call(Object... objects) {
@@ -628,7 +644,7 @@ public class ConnectionTest extends Connection {
         });
 
         socket.open();
-        assertThat((Integer)values.take(), is(2));
+        assertThat((Integer) values.take(), is(2));
         socket.close();
         manager.close();
     }
@@ -643,7 +659,7 @@ public class ConnectionTest extends Connection {
         opts.reconnectionDelay = 10;
         final Manager manager = new Manager(uri(), opts);
 
-        final int[] reconnects = new int[] {0};
+        final int[] reconnects = new int[]{0};
         Emitter.Listener reconnectCb = new Emitter.Listener() {
             @Override
             public void call(Object... objects) {
@@ -663,7 +679,7 @@ public class ConnectionTest extends Connection {
 
         socket = manager.socket("/timeout");
         socket.open();
-        assertThat((Integer)values.take(), is(2));
+        assertThat((Integer) values.take(), is(2));
     }
 
     @Test(timeout = TIMEOUT)
@@ -712,7 +728,7 @@ public class ConnectionTest extends Connection {
         final Manager manager = new Manager(uri(), opts);
         socket = manager.socket("/timeout_socket");
 
-        final int[] reconnects = new int[] {0};
+        final int[] reconnects = new int[]{0};
         Emitter.Listener reconnectCb = new Emitter.Listener() {
             @Override
             public void call(Object... args) {
@@ -731,8 +747,8 @@ public class ConnectionTest extends Connection {
             }
         });
         socket.open();
-        assertThat((Integer)values.take(), is(reconnects[0]));
-        assertThat((Integer)values.take(), is(2));
+        assertThat((Integer) values.take(), is(reconnects[0]));
+        assertThat((Integer) values.take(), is(2));
     }
 
     @Test(timeout = TIMEOUT)
@@ -747,7 +763,7 @@ public class ConnectionTest extends Connection {
         final Manager manager = new Manager(uri(), opts);
         socket = manager.socket("/timeout_socket");
 
-        final int[] reconnects = new int[] {0};
+        final int[] reconnects = new int[]{0};
         Emitter.Listener reconnectCb = new Emitter.Listener() {
             @Override
             public void call(Object... args) {
@@ -766,8 +782,8 @@ public class ConnectionTest extends Connection {
             }
         });
         socket.open();
-        assertThat((Integer)values.take(), is(reconnects[0]));
-        assertThat((Integer)values.take(), is(2));
+        assertThat((Integer) values.take(), is(reconnects[0]));
+        assertThat((Integer) values.take(), is(2));
     }
 
     @Test(timeout = TIMEOUT)
@@ -816,7 +832,7 @@ public class ConnectionTest extends Connection {
         socket.connect();
         Object data = values.take();
         assertThat(data, instanceOf(JSONObject.class));
-        assertThat(((JSONObject)data).get("date"), instanceOf(String.class));
+        assertThat(((JSONObject) data).get("date"), instanceOf(String.class));
         socket.close();
     }
 
@@ -839,7 +855,7 @@ public class ConnectionTest extends Connection {
             }
         });
         socket.open();
-        assertThat((byte[])values.take(), is(buf));
+        assertThat((byte[]) values.take(), is(buf));
         socket.close();
     }
 
@@ -869,9 +885,9 @@ public class ConnectionTest extends Connection {
             }
         });
         socket.open();
-        JSONObject a = (JSONObject)values.take();
+        JSONObject a = (JSONObject) values.take();
         assertThat(a.getString("hello"), is("lol"));
-        assertThat((byte[])a.get("message"), is(buf));
+        assertThat((byte[]) a.get("message"), is(buf));
         assertThat(a.getString("goodbye"), is("gotcha"));
         socket.close();
     }
@@ -896,8 +912,8 @@ public class ConnectionTest extends Connection {
             }
         });
         socket.open();
-        assertThat((byte[])values.take(), is(buf));
-        assertThat((String)values.take(), is("please arrive second"));
+        assertThat((byte[]) values.take(), is(buf));
+        assertThat((String) values.take(), is("please arrive second"));
         socket.close();
     }
 
@@ -906,43 +922,52 @@ public class ConnectionTest extends Connection {
         final BlockingQueue<String> events = new LinkedBlockingQueue<>();
 
         socket = client();
-        socket.on(Socket.EVENT_CONNECT, args -> {
-            if (!socket.isRecovered()) {
-                events.offer("first-connect");
-                // Tell server to start buffering scenario
-                socket.emit("startBufferTest");
+        socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
+            @Override
+            public void call(Object... args) {
+                if (!socket.isRecovered()) {
+                    events.offer("first-connect");
+                    // Tell server to start buffering scenario
+                    socket.emit("startBufferTest");
 
-                // Disconnect engine after 1 second
+                    // Disconnect engine after 1 second
+                    Timer timer = new Timer();
+                    timer.schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            socket.io().engine.close();
+                        }
+                    }, 1000);
+                } else {
+                    // Reconnected with recovery
+                    events.offer("reconnected");
+                }
+            }
+        });
+
+        socket.on(Socket.EVENT_DISCONNECT, new Emitter.Listener() {
+            @Override
+            public void call(Object... args) {
+                events.offer("disconnected");
+                // Reconnect after 2 seconds
                 Timer timer = new Timer();
                 timer.schedule(new TimerTask() {
                     @Override
                     public void run() {
-                        socket.io().engine.close();
+                        socket.connect();
                     }
-                }, 1000);
-            } else {
-                // Reconnected with recovery
-                events.offer("reconnected");
+                }, 2000);
             }
         });
 
-        socket.on(Socket.EVENT_DISCONNECT, args -> {
-            events.offer("disconnected");
-            // Reconnect after 2 seconds
-            Timer timer = new Timer();
-            timer.schedule(new TimerTask() {
-                @Override
-                public void run() {
-                    socket.connect();
+        socket.on("message", new Emitter.Listener() {
+            @Override
+            public void call(Object... args) {
+                if (args[0] instanceof JSONObject) {
+                    JSONObject data = (JSONObject) args[0];
+                    String text = data.optString("text");
+                    events.offer(text);
                 }
-            }, 2000);
-        });
-
-        socket.on("message", args -> {
-            if (args[0] instanceof JSONObject) {
-                JSONObject data = (JSONObject) args[0];
-                String text = data.optString("text");
-                events.offer(text);
             }
         });
 
